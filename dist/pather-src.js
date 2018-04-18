@@ -1,384 +1,373 @@
-(function main($window) {
+(function (global, factory) {
+    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('leaflet'), require('d3')) :
+    typeof define === 'function' && define.amd ? define(['leaflet', 'd3'], factory) :
+    (global.L = global.L || {}, global.L.Pather = factory(global.L,global.d3));
+}(this, (function (leaflet,d3) { 'use strict';
 
-    "use strict";
+    /*! *****************************************************************************
+    Copyright (c) Microsoft Corporation. All rights reserved.
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+    this file except in compliance with the License. You may obtain a copy of the
+    License at http://www.apache.org/licenses/LICENSE-2.0
 
-    /**
-     * @method throwException
-     * @throws {Error}
-     * @return {void}
-     */
-    function throwException(message) {
-        throw 'L.Pather: ' + message + '.';
+    THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
+    WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
+    MERCHANTABLITY OR NON-INFRINGEMENT.
+
+    See the Apache Version 2.0 License for specific language governing permissions
+    and limitations under the License.
+    ***************************************************************************** */
+    /* global Reflect, Promise */
+
+    var extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+
+    function __extends(d, b) {
+        extendStatics(d, b);
+        function __() { this.constructor = d; }
+        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
     }
 
-    if (typeof L === 'undefined') {
-
-        // Ensure Leaflet.js has been included before Pather.
-        throwException('Leaflet.js is required: http://leafletjs.com/');
-
-    }
-
-    /**
-     * @constant MODES
-     * @type {{VIEW: number, CREATE: number, EDIT: number, DELETE: number, APPEND: number, EDIT_APPEND: number, ALL: number}}
-     */
-    var MODES = {
-        VIEW:        1,
-        CREATE:      2,
-        EDIT:        4,
-        DELETE:      8,
-        APPEND:      16,
-        EDIT_APPEND: 4 | 16,
-        ALL:         1 | 2 | 4 | 8 | 16
+    var __assign = Object.assign || function __assign(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+        }
+        return t;
     };
 
-    /**
-     * @module Pather
-     * @author Adam Timberlake
-     * @link https://github.com/Wildhoney/L.Pather
-     */
-    L.Pather = L.FeatureGroup.extend({
+    var Mode;
+    (function (Mode) {
+        Mode[Mode["VIEW"] = 1] = "VIEW";
+        Mode[Mode["CREATE"] = 2] = "CREATE";
+        Mode[Mode["EDIT"] = 4] = "EDIT";
+        Mode[Mode["DELETE"] = 8] = "DELETE";
+        Mode[Mode["APPEND"] = 16] = "APPEND";
+        Mode[Mode["EDIT_APPEND"] = 20] = "EDIT_APPEND";
+        Mode[Mode["ALL"] = 31] = "ALL";
+    })(Mode || (Mode = {}));
+    var Mode$1 = Mode;
 
-        /**
-         * @method initialize
-         * @param {Object} [options={}]
-         * @return {void}
-         */
-        initialize: function initialize(options) {
+    var PatherPolyline = /** @class */ (function () {
+        function PatherPolyline(map, latLngs, options, methods) {
+            this.map = map;
+            this.options = options;
+            this.methods = methods;
+            this.edges = [];
+            this.polyline = new leaflet.Polyline(latLngs, this.options).addTo(map);
+            this.edges = [];
+            this.manipulating = null;
+            this.attachPolylineEvents(this.polyline);
+            this.select();
+        }
+        PatherPolyline.prototype.select = function () {
+            this.attachElbows();
+        };
+        PatherPolyline.prototype.deselect = function () {
+            this.manipulating = null;
+        };
+        PatherPolyline.prototype.attachElbows = function () {
+            var _this = this;
+            this.detachElbows();
+            this.getLatLngs().forEach(function (latLng) {
+                var icon = new leaflet.DivIcon({ className: 'elbow' });
+                var edge = new leaflet.Marker(latLng, { icon: icon }).addTo(_this.map);
+                _this.attachElbowEvents(edge);
+                _this.edges.push(edge);
+            });
+        };
+        PatherPolyline.prototype.detachElbows = function () {
+            var _this = this;
+            this.edges.forEach(function (edge) { return _this.map.removeLayer(edge); });
+            this.edges.length = 0;
+        };
+        PatherPolyline.prototype.attachPolylineEvents = function (polyline) {
+            var _this = this;
+            polyline.on('click', function (event) {
+                event.originalEvent.stopPropagation();
+                event.originalEvent.preventDefault();
+                if (_this.methods.mode() & Mode$1.APPEND) {
+                    // Appending takes precedence over deletion!
+                    var latLng = _this.map.mouseEventToLatLng(event.originalEvent);
+                    _this.insertElbow(latLng);
+                }
+                else if (_this.methods.mode() & Mode$1.DELETE) {
+                    _this.methods.remove(_this);
+                }
+            });
+        };
+        PatherPolyline.prototype.attachElbowEvents = function (marker) {
+            var _this = this;
+            marker.on('mousedown touchstart', function (event) {
+                var originalEvent = event.originalEvent;
+                if (_this.methods.mode() & Mode$1.EDIT) {
+                    if (originalEvent.stopPropagation) {
+                        originalEvent.stopPropagation();
+                        originalEvent.preventDefault();
+                    }
+                    _this.manipulating = marker;
+                }
+            });
+            marker.on('mouseup touchend', function (event) {
+                var originalEvent = event.originalEvent;
+                if (originalEvent.stopPropagation) {
+                    originalEvent.stopPropagation();
+                    originalEvent.preventDefault();
+                }
+                _this.manipulating = null;
+            });
+        };
+        PatherPolyline.prototype.insertElbow = function (latLng) {
+            var _this = this;
+            var newPoint = this.map.latLngToLayerPoint(latLng);
+            var leastDistance = Infinity;
+            var insertAt = -1;
+            var points = this.getLatLngs().map(function (latLng) {
+                return _this.map.latLngToLayerPoint(latLng);
+            });
+            points.forEach(function (currentPoint, index) {
+                var nextPoint = points[index + 1] || points[0];
+                var distance = leaflet.LineUtil.pointToSegmentDistance(newPoint, currentPoint, nextPoint);
+                if (distance < leastDistance) {
+                    leastDistance = distance;
+                    insertAt = index;
+                }
+            });
+            points.splice(insertAt + 1, 0, newPoint);
+            var parts = points.map(function (point) {
+                var latLng = _this.map.layerPointToLatLng(point);
+                return { _latlng: latLng };
+            });
+            this.redraw(parts);
+            this.attachElbows();
+        };
+        PatherPolyline.prototype.moveTo = function (point) {
+            this.manipulating.setLatLng(this.map.layerPointToLatLng(point));
+            this.redraw(this.edges);
+        };
+        PatherPolyline.prototype.finished = function () {
+            this.methods.fire('edited', {
+                polyline: this,
+                latLngs: this.polyline.getLatLngs()
+            });
+        };
+        PatherPolyline.prototype.redraw = function (edges) {
+            var latLngs = edges.map(function (edge) { return edge._latlng; });
+            var options = __assign({}, this.options, { smoothFactor: 0 });
+            this.softRemove(false);
+            this.polyline = new leaflet.Polyline(latLngs, options).addTo(this.map);
+            this.attachPolylineEvents(this.polyline);
+        };
+        PatherPolyline.prototype.softRemove = function (edgesToo) {
+            var _this = this;
+            if (edgesToo === void 0) { edgesToo = true; }
+            this.map.removeLayer(this.polyline);
+            if (edgesToo) {
+                this.edges.forEach(function (edge) {
+                    _this.map.removeLayer(edge);
+                });
+            }
+        };
+        PatherPolyline.prototype.getLatLngs = function () {
+            return this.polyline.getLatLngs();
+        };
+        return PatherPolyline;
+    }());
 
-            this.options       = Object.assign(this.defaultOptions(), options || {});
-            this.creating      = false;
-            this.polylines     = [];
-            this.eventHandlers = [];
-
-        },
-
-        /**
-         * @method createPath
-         * @param {L.LatLng[]} latLngs
-         * @return {L.Pather.Polyline|Boolean}
-         */
-        createPath: function createPath(latLngs) {
-
+    var Pather = /** @class */ (function (_super) {
+        __extends(Pather, _super);
+        function Pather(options) {
+            if (options === void 0) { options = {}; }
+            var _this = _super.call(this) || this;
+            _this.options = options;
+            _this.creating = false;
+            _this.polylines = [];
+            _this.eventHandlers = {};
+            _this.draggingState = false;
+            _this.latLngs = [];
+            _this.options = __assign({}, _this.defaultOptions(), options);
+            return _this;
+        }
+        Pather.prototype.createPath = function (latLngs) {
             if (latLngs.length <= 1) {
                 return false;
             }
-
             this.clearAll();
-
-            var polyline = new L.Pather.Polyline(this.map, latLngs, this.options, {
+            var polyline = new PatherPolyline(this.map, latLngs, this.options, {
                 fire: this.fire.bind(this),
                 mode: this.getMode.bind(this),
                 remove: this.removePath.bind(this)
             });
-
             this.polylines.push(polyline);
-
             this.fire('created', {
                 polyline: polyline,
                 latLngs: polyline.getLatLngs()
             });
-
             return polyline;
-
-        },
-
-        /**
-         * @method removePath
-         * @param {L.Pather.Polyline} model
-         * @return {Boolean}
-         */
-        removePath: function removePath(model) {
-
-            if (model instanceof L.Pather.Polyline) {
-
+        };
+        Pather.prototype.removePath = function (model) {
+            if (model instanceof PatherPolyline) {
                 var indexOf = this.polylines.indexOf(model);
                 this.polylines.splice(indexOf, 1);
-
                 model.softRemove();
-
-                this.fire('deleted', {
-                    polyline: model,
-                    latLngs: []
-                });
-
+                this.fire('deleted', { polyline: model, latLngs: [] });
                 return true;
-
             }
-
             return false;
-
-        },
-
-        /**
-         * @method getPaths
-         * @return {Array}
-         */
-        getPaths: function getPolylines() {
+        };
+        Pather.prototype.getPaths = function () {
             return this.polylines;
-        },
-
-        /**
-         * @method onAdd
-         * @param {L.Map} map
-         * @return {void}
-         */
-        onAdd: function onAdd(map) {
-
-            var element        = this.element = this.options.element || map.getContainer();
-            this.draggingState = map.dragging._enabled;
-            this.map           = map;
-            this.fromPoint     = { x: 0, y: 0 };
-            this.svg           = d3.select(element)
-                                   .append('svg')
-                                       .attr('pointer-events', 'none')
-                                       .attr('class', this.getOption('moduleClass'))
-                                       .attr('width', this.getOption('width'))
-                                       .attr('height', this.getOption('height'));
-
+        };
+        Pather.prototype.onAdd = function (map) {
+            this.map = map;
+            this.element = map.getContainer();
+            this.draggingState = map.dragging.enabled();
+            this.fromPoint = new leaflet.Point(0, 0, false);
+            this.svg = d3.select(this.element)
+                .append('svg')
+                .attr('pointer-events', 'none')
+                .attr('class', this.getOption('moduleClass'))
+                .attr('width', this.getOption('width'))
+                .attr('height', this.getOption('height'));
             map.dragging.disable();
-
             // Attach the mouse events for drawing the polyline.
             this.attachEvents(map);
             this.setMode(this.options.mode);
-
-        },
-
-        /**
-         * @method onRemove
-         * @return {void}
-         */
-        onRemove: function onRemove() {
-
+            return this;
+        };
+        Pather.prototype.onRemove = function (map) {
             this.svg.remove();
-
             if (this.options.removePolylines) {
-
                 var length = this.polylines.length;
-
                 while (length--) {
                     this.removePath(this.polylines[length]);
                 }
-
             }
-
-            this.map.off('mousedown', this.eventHandlers.mouseDown);
-            this.map.off('mousemove', this.eventHandlers.mouseMove);
-            this.map.off('mouseup',   this.eventHandlers.mouseUp);
-            this.map.getContainer().removeEventListener('mouseleave', this.eventHandlers.mouseLeave);
-
+            this.map.off('mousedown', this.mouseDownHandler, this);
+            this.map.off('mousemove', this.mouseMoveHandler, this);
+            this.map.off('mouseup', this.mouseUpHandler, this);
+            this.map
+                .getContainer()
+                .removeEventListener('mouseleave', this.mouseLeaveHandler);
             this.element.classList.remove('mode-create');
             this.element.classList.remove('mode-delete');
             this.element.classList.remove('mode-edit');
             this.element.classList.remove('mode-append');
-
-            var tileLayer     = this.map.getContainer().querySelector('.leaflet-tile-pane'),
-                originalState = this.draggingState ? 'enable' : 'disable';
+            var tileLayer = this.map
+                .getContainer()
+                .querySelector('.leaflet-tile-pane');
+            var originalState = this.draggingState ? 'enable' : 'disable';
             tileLayer.style.pointerEvents = 'all';
             this.map.dragging[originalState]();
-
-        },
-
-        /**
-         * @method getEvent
-         * @param {Object} event
-         * @return {Object}
-         */
-        getEvent: function getEvent(event) {
-
-            if (event.touches) {
-                return event.touches[0];
-            }
-
-            return event;
-
-        },
-
-        /**
-         * @method edgeBeingChanged
-         * @return {Array}
-         */
-        edgeBeingChanged: function edgeBeingChanged() {
-
-            var edges = this.polylines.filter(function filter(polyline) {
-                return polyline.manipulating;
-            });
-
+            return this;
+        };
+        Pather.prototype.edgeBeingChanged = function () {
+            var edges = this.polylines.filter(function (polyline) { return polyline.manipulating != null; });
             return edges.length === 0 ? null : edges[0];
-
-        },
-
-        /**
-         * @method isPolylineCreatable
-         * @return {Boolean}
-         */
-        isPolylineCreatable: function isPolylineCreatable() {
-            return !!(this.options.mode & MODES.CREATE);
-        },
-
-        /**
-         * @property events
-         * @type {Object}
-         */
-        events: {
-
-            /**
-             * @method mouseDown
-             * @param {Object} event
-             */
-            mouseDown: function mouseDown(event) {
-
-                event = event.originalEvent || this.getEvent(event);
-
-                var point  = this.map.mouseEventToContainerPoint(event),
-                    latLng = this.map.containerPointToLatLng(point);
-
-                if (this.isPolylineCreatable() && !this.edgeBeingChanged()) {
-
-                    this.creating  = true;
-                    this.fromPoint = this.map.latLngToContainerPoint(latLng);
-                    this.latLngs   = [];
-
-                }
-
-            },
-
-            /**
-             * @method mouseMove
-             * @param {Object} event
-             * @return {void}
-             */
-            mouseMove: function mouseMove(event) {
-
-                event     = event.originalEvent || this.getEvent(event);
-                var point = this.map.mouseEventToContainerPoint(event);
-
-                if (this.edgeBeingChanged()) {
-                    this.edgeBeingChanged().moveTo(this.map.containerPointToLayerPoint(point));
-                    return;
-                }
-
-                var lineFunction = d3.svg.line()
-                    .x(function x(d) { return d.x; })
-                    .y(function y(d) { return d.y; })
-                    .interpolate('linear');
-
-                if (this.creating) {
-
-                    var lineData = [this.fromPoint, new L.Point(point.x, point.y, false)];
-                    this.latLngs.push(point);
-
-                    this.svg.append('path')
-                        .classed(this.getOption('lineClass'), true)
-                        .attr('d', lineFunction(lineData))
-                        .attr('stroke', this.getOption('strokeColour'))
-                        .attr('stroke-width', this.getOption('strokeWidth'))
-                        .attr('fill', 'none');
-
-                    this.fromPoint = { x: point.x, y: point.y };
-
-                }
-
-            },
-
-            /**
-             * @method mouseLeave
-             * @return {void}
-             */
-            mouseLeave: function mouseLeave() {
-                this.clearAll();
-                this.creating = false;
-            },
-
-            /**
-             * @method mouseUp
-             * @return {void}
-             */
-            mouseUp: function mouseup() {
-
-                if (this.creating) {
-
-                    this.creating = false;
-                    this.createPath(this.convertPointsToLatLngs(this.latLngs));
-                    this.latLngs  = [];
-                    return;
-
-                }
-
-                if (this.edgeBeingChanged()) {
-
-                    this.edgeBeingChanged().attachElbows();
-                    this.edgeBeingChanged().finished();
-                    this.edgeBeingChanged().manipulating = false;
-
-                }
-
+        };
+        Pather.prototype.isPolylineCreatable = function () {
+            return !!(this.options.mode & Mode$1.CREATE);
+        };
+        Pather.prototype.mouseDownHandler = function (event) {
+            var latLng = this.map.mouseEventToLatLng(event.originalEvent);
+            if (this.isPolylineCreatable() && !this.edgeBeingChanged()) {
+                this.creating = true;
+                this.fromPoint = this.map.latLngToContainerPoint(latLng);
+                this.latLngs = [];
             }
-
-        },
-
+        };
+        Pather.prototype.mouseMoveHandler = function (event) {
+            var point = this.map.mouseEventToContainerPoint(event.originalEvent);
+            if (this.edgeBeingChanged()) {
+                this.edgeBeingChanged().moveTo(this.map.containerPointToLayerPoint(point));
+                return;
+            }
+            var lineFunction = d3.line()
+                .x(function (d) { return d.x; })
+                .y(function (d) { return d.y; })
+                .curve(d3.curveLinear);
+            if (this.creating) {
+                var lineData = [this.fromPoint, new leaflet.Point(point.x, point.y, false)];
+                this.latLngs.push(this.map.containerPointToLatLng(point));
+                this.svg
+                    .append('path')
+                    .classed('drawing-line', true)
+                    .attr('d', lineFunction(lineData))
+                    .attr('stroke', this.getOption('strokeColour'))
+                    .attr('stroke-width', this.getOption('strokeWidth'))
+                    .attr('fill', 'none');
+                this.fromPoint = new leaflet.Point(point.x, point.y, false);
+            }
+        };
+        Pather.prototype.mouseLeaveHandler = function () {
+            this.clearAll();
+            this.creating = false;
+        };
+        Pather.prototype.mouseUpHandler = function () {
+            if (this.creating) {
+                this.creating = false;
+                this.createPath(this.latLngs);
+                this.latLngs = [];
+                return;
+            }
+            var edgeBeingChanged = this.edgeBeingChanged();
+            if (!edgeBeingChanged)
+                return;
+            edgeBeingChanged.attachElbows();
+            edgeBeingChanged.finished();
+            edgeBeingChanged.manipulating = null;
+        };
         /**
          * @method attachEvents
          * @param {L.Map} map
          * @return {void}
          */
-        attachEvents: function attachEvents(map) {
-
+        Pather.prototype.attachEvents = function (map) {
             this.eventHandlers = {
-                mouseDown:  this.events.mouseDown.bind(this),
-                mouseMove:  this.events.mouseMove.bind(this),
-                mouseUp:    this.events.mouseUp.bind(this),
-                mouseLeave: this.events.mouseLeave.bind(this)
+                mouseDown: this.mouseDownHandler.bind(this),
+                mouseMove: this.mouseMoveHandler.bind(this),
+                mouseUp: this.mouseUpHandler.bind(this),
+                mouseLeave: this.mouseLeaveHandler.bind(this)
             };
-
-            this.map.on('mousedown', this.eventHandlers.mouseDown);
-            this.map.on('mousemove', this.eventHandlers.mouseMove);
-            this.map.on('mouseup', this.eventHandlers.mouseUp);
-            this.map.getContainer().addEventListener('mouseleave', this.eventHandlers.mouseLeave);
-
+            this.map.on('mousedown', this.mouseDownHandler, this);
+            this.map.on('mousemove', this.mouseMoveHandler, this);
+            this.map.on('mouseup', this.mouseUpHandler, this);
+            this.map
+                .getContainer()
+                .addEventListener('mouseleave', this.mouseLeaveHandler.bind(this));
             // Attach the mobile events that delegate to the desktop events.
-            this.map.getContainer().addEventListener('touchstart', this.fire.bind(map, 'mousedown'));
-            this.map.getContainer().addEventListener('touchmove', this.fire.bind(map, 'mousemove'));
-            this.map.getContainer().addEventListener('touchend', this.fire.bind(map, 'mouseup'));
-
-        },
-
-        /**
-         * @method convertPointsToLatLngs
-         * @param {Point[]} points
-         * @return {LatLng[]}
-         */
-        convertPointsToLatLngs: function convertPointsToLatLngs(points) {
-
-            return points.map(function map(point) {
-                return this.map.containerPointToLatLng(point);
-            }.bind(this));
-
-        },
-
+            this.map
+                .getContainer()
+                .addEventListener('touchstart', this.fire.bind(map, 'mousedown'));
+            this.map
+                .getContainer()
+                .addEventListener('touchmove', this.fire.bind(map, 'mousemove'));
+            this.map
+                .getContainer()
+                .addEventListener('touchend', this.fire.bind(map, 'mouseup'));
+        };
         /**
          * @method clearAll
          * @return {void}
          */
-        clearAll: function clearAll() {
+        Pather.prototype.clearAll = function () {
             this.svg.text('');
-        },
-
+        };
         /**
          * @method getOption
          * @param {String} property
          * @return {String|Number}
          */
-        getOption: function getOption(property) {
+        Pather.prototype.getOption = function (property) {
             return this.options[property] || this.defaultOptions()[property];
-        },
-
+        };
         /**
          * @method defaultOptions
          * @return {Object}
          */
-        defaultOptions: function defaultOptions() {
-
+        Pather.prototype.defaultOptions = function () {
             return {
                 moduleClass: 'pather',
                 lineClass: 'drawing-line',
@@ -393,452 +382,84 @@
                 pathColour: 'black',
                 pathOpacity: 0.55,
                 pathWidth: 3,
-                mode: MODES.ALL
+                mode: Mode$1.ALL
             };
-
-        },
-
+        };
         /**
          * @method setSmoothFactor
          * @param {Number} smoothFactor
          * @return {void}
          */
-        setSmoothFactor: function setSmoothFactor(smoothFactor) {
-            this.options.smoothFactor = parseInt(smoothFactor);
-        },
-
+        Pather.prototype.setSmoothFactor = function (smoothFactor) {
+            this.options.smoothFactor = smoothFactor;
+        };
         /**
          * @method setMode
          * @param {Number} mode
          * @return {void}
          */
-        setMode: function setMode(mode) {
-
+        Pather.prototype.setMode = function (mode) {
+            var _this = this;
             this.setClassName(mode);
             this.options.mode = mode;
-
-            var tileLayer = this.map.getContainer().querySelector('.leaflet-tile-pane');
-
+            var tileLayer = this.map
+                .getContainer()
+                .querySelector('.leaflet-tile-pane');
             /**
              * @method shouldDisableDrag
              * @return {Boolean}
              * @see http://www.stucox.com/blog/you-cant-detect-a-touchscreen/
              */
-            var shouldDisableDrag = function shouldDisableDrag() {
-
-                if (this.detectTouch && ('ontouchstart' in $window || 'onmsgesturechange' in $window)) {
-                    return (this.options.mode & MODES.CREATE || this.options.mode & MODES.EDIT);
+            var shouldDisableDrag = function () {
+                if (_this.options.detectTouch &&
+                    ('ontouchstart' in window || 'onmsgesturechange' in window)) {
+                    return (!!(_this.options.mode & Mode$1.CREATE) ||
+                        !!(_this.options.mode & Mode$1.EDIT));
                 }
-
-                return (this.options.mode & MODES.CREATE);
-
-            }.bind(this);
-
+                return !!(_this.options.mode & Mode$1.CREATE);
+            };
             if (shouldDisableDrag()) {
-
                 var originalState = this.draggingState ? 'disable' : 'enable';
                 tileLayer.style.pointerEvents = 'none';
                 return void this.map.dragging[originalState]();
-
             }
-
             tileLayer.style.pointerEvents = 'all';
             this.map.dragging.enable();
-
-        },
-
+        };
         /**
          * @method setClassName
          * @param {Number} mode
          * @return {void}
          */
-        setClassName: function setClassName(mode) {
-
+        Pather.prototype.setClassName = function (mode) {
+            var _this = this;
             /**
              * @method conditionallyAppendClassName
              * @param {String} modeName
              * @return {void}
              */
-            var conditionallyAppendClassName = function conditionallyAppendClassName(modeName) {
-
+            var conditionallyAppendClassName = function (modeName) {
                 var className = ['mode', modeName].join('-');
-
-                if (MODES[modeName.toUpperCase()] & mode) {
-                    return void this.element.classList.add(className);
+                if (Mode$1[modeName.toUpperCase()] & mode) {
+                    return void _this.element.classList.add(className);
                 }
-
-                this.element.classList.remove(className);
-
-            }.bind(this);
-
+                _this.element.classList.remove(className);
+            };
             conditionallyAppendClassName('create');
             conditionallyAppendClassName('delete');
             conditionallyAppendClassName('edit');
             conditionallyAppendClassName('append');
-        },
-
-        /**
-         * @method getMode
-         * @return {Number}
-         */
-        getMode: function getMode() {
-            return this.options.mode;
-        },
-
-        /**
-         * @method setOptions
-         * @param {Object} options
-         * @return {void}
-         */
-        setOptions: function setOptions(options) {
-            this.options = Object.assign(this.options, options || {});
-        }
-
-    });
-
-    /**
-     * @constant L.Pather.MODE
-     * @type {Object}
-     */
-    L.Pather.MODE = MODES;
-
-    // Simple factory that Leaflet loves to bundle.
-    L.pather = function pather(options) {
-        return new L.Pather(options);
-    };
-
-})(window);
-(function main() {
-
-    "use strict";
-
-    /* jshint ignore:start */
-
-    if (!Object.assign) {
-        Object.defineProperty(Object, 'assign', {
-            enumerable: false,
-            configurable: true,
-            writable: true,
-            value: function(target, firstSource) {
-                'use strict';
-                if (target === undefined || target === null) {
-                    throw new TypeError('Cannot convert first argument to object');
-                }
-
-                var to = Object(target);
-                for (var i = 1; i < arguments.length; i++) {
-                    var nextSource = arguments[i];
-                    if (nextSource === undefined || nextSource === null) {
-                        continue;
-                    }
-                    nextSource = Object(nextSource);
-
-                    var keysArray = Object.keys(Object(nextSource));
-                    for (var nextIndex = 0, len = keysArray.length; nextIndex < len; nextIndex++) {
-                        var nextKey = keysArray[nextIndex];
-                        var desc = Object.getOwnPropertyDescriptor(nextSource, nextKey);
-                        if (desc !== undefined && desc.enumerable) {
-                            to[nextKey] = nextSource[nextKey];
-                        }
-                    }
-                }
-                return to;
-            }
-        });
-    }
-
-    /* jshint ignore:end */
-
-})();
-(function main() {
-
-    "use strict";
-
-    /**
-     * @constant DATA_ATTRIBUTE
-     * @type {String|Symbol}
-     */
-    var DATA_ATTRIBUTE = typeof Symbol === 'undefined' ? '_pather' : Symbol.for('pather');
-
-    /**
-     * @module Pather
-     * @submodule Polyline
-     * @param {L.Map} map
-     * @param {L.LatLng[]} latLngs
-     * @param {Object} [options={}]
-     * @param {Object} methods
-     * @return {Polyline}
-     * @constructor
-     */
-    L.Pather.Polyline = function Polyline(map, latLngs, options, methods) {
-
-        this.options = {
-            color:        options.pathColour,
-            opacity:      options.pathOpacity,
-            weight:       options.pathWidth,
-            smoothFactor: options.smoothFactor || 1,
-            elbowClass:   options.elbowClass
         };
-
-        this.polyline     = new L.Polyline(latLngs, this.options).addTo(map);
-        this.map          = map;
-        this.methods      = methods;
-        this.edges        = [];
-        this.manipulating = false;
-
-        this.attachPolylineEvents(this.polyline);
-        this.select();
-
-    };
-
-    /**
-     * @property prototype
-     * @type {Object}
-     */
-    L.Pather.Polyline.prototype = {
-
-        /**
-         * @method select
-         * @return {void}
-         */
-        select: function select() {
-            this.attachElbows();
-        },
-
-        /**
-         * @method deselect
-         * @return {void}
-         */
-        deselect: function deselect() {
-            this.manipulating = false;
-        },
-
-        /**
-         * @method attachElbows
-         * @return {void}
-         */
-        attachElbows: function attachElbows() {
-
-            this.detachElbows();
-
-            this.polyline._parts[0].forEach(function forEach(point) {
-
-                var divIcon = new L.DivIcon({ className: this.options.elbowClass }),
-                    latLng  = this.map.layerPointToLatLng(point),
-                    edge    = new L.Marker(latLng, { icon: divIcon }).addTo(this.map);
-
-                edge[DATA_ATTRIBUTE] = { point: point };
-                this.attachElbowEvents(edge);
-                this.edges.push(edge);
-
-            }.bind(this));
-
-        },
-
-        /**
-         * @method detachElbows
-         * @return {void}
-         */
-        detachElbows: function detachElbows() {
-
-            this.edges.forEach(function forEach(edge) {
-                this.map.removeLayer(edge);
-            }.bind(this));
-
-            this.edges.length = 0;
-
-        },
-
-        /**
-         * @method attachPolylineEvents
-         * @param {L.Polyline} polyline
-         * @return {void}
-         */
-        attachPolylineEvents: function attachPathEvent(polyline) {
-
-            polyline.on('click', function click(event) {
-
-                event.originalEvent.stopPropagation();
-                event.originalEvent.preventDefault();
-
-                if (this.methods.mode() & L.Pather.MODE.APPEND) {
-
-                    // Appending takes precedence over deletion!
-                    var latLng = this.map.mouseEventToLatLng(event.originalEvent);
-                    this.insertElbow(latLng);
-
-                } else if (this.methods.mode() & L.Pather.MODE.DELETE) {
-                    this.methods.remove(this);
-                }
-
-            }.bind(this));
-
-        },
-
-        /**
-         * @method attachElbowEvents
-         * @param {L.Marker} marker
-         * @return {void}
-         */
-        attachElbowEvents: function attachElbowEvents(marker) {
-
-            marker.on('mousedown', function mousedown(event) {
-
-                event = event.originalEvent || event;
-
-                if (this.methods.mode() & L.Pather.MODE.EDIT) {
-
-                    if (event.stopPropagation) {
-                        event.stopPropagation();
-                        event.preventDefault();
-                    }
-
-                    this.manipulating = marker;
-
-                }
-
-            }.bind(this));
-
-            marker.on('mouseup', function mouseup(event) {
-
-                event = event.originalEvent || event;
-
-                if (event.stopPropagation) {
-                    event.stopPropagation();
-                    event.preventDefault();
-                }
-
-                this.manipulating = false;
-
-            });
-
-            // Attach the mobile events to delegate to the desktop equivalent events.
-            marker._icon.addEventListener('touchstart', marker.fire.bind(marker, 'mousedown'));
-            marker._icon.addEventListener('touchend', marker.fire.bind(marker, 'mouseup'));
-
-        },
-
-        /**
-         * @method insertElbow
-         * @param {L.LatLng} latLng
-         * @return {void}
-         */
-        insertElbow: function insertElbow(latLng) {
-
-            var newPoint      = this.map.latLngToLayerPoint(latLng),
-                leastDistance = Infinity,
-                insertAt      = -1,
-                points        = this.polyline._parts[0];
-
-            points.forEach(function forEach(currentPoint, index) {
-
-                var nextPoint = points[index + 1] || points[0],
-                    distance  = L.LineUtil.pointToSegmentDistance(newPoint, currentPoint, nextPoint);
-
-                if (distance < leastDistance) {
-                    leastDistance = distance;
-                    insertAt      = index;
-                }
-
-            }.bind(this));
-
-            points.splice(insertAt + 1, 0, newPoint);
-
-            var parts = points.map(function map(point) {
-                var latLng = this.map.layerPointToLatLng(point);
-                return { _latlng: latLng };
-            }.bind(this));
-
-            this.redraw(parts);
-            this.attachElbows();
-
-        },
-
-        /**
-         * @method moveTo
-         * @param {L.Point} point
-         * @return {void}
-         */
-        moveTo: function moveTo(point) {
-
-            var latLng = this.map.layerPointToLatLng(point);
-            this.manipulating.setLatLng(latLng);
-            this.redraw(this.edges);
-
-        },
-
-        /**
-         * @method finished
-         * @return {void}
-         */
-        finished: function finished() {
-
-            this.methods.fire('edited', {
-                polyline: this,
-                latLngs: this.getLatLngs()
-            });
-
-        },
-
-        /**
-         * @method redraw
-         * @param {Array} edges
-         * @return {void}
-         */
-        redraw: function redraw(edges) {
-
-            var latLngs = [],
-                options = {};
-
-            edges.forEach(function forEach(edge) {
-                latLngs.push(edge._latlng);
-            });
-
-            Object.keys(this.options).forEach(function forEach(key) {
-                options[key] = this.options[key];
-            }.bind(this));
-
-            options.smoothFactor = 0;
-
-            this.softRemove(false);
-            this.polyline = new L.Polyline(latLngs, options).addTo(this.map);
-            this.attachPolylineEvents(this.polyline);
-
-        },
-
-        /**
-         * @method softRemove
-         * @param {Boolean} [edgesToo=true]
-         * @return {void}
-         */
-        softRemove: function softRemove(edgesToo) {
-
-            edgesToo = typeof edgesToo === 'undefined' ? true : edgesToo;
-
-            this.map.removeLayer(this.polyline);
-
-            if (edgesToo) {
-
-                this.edges.forEach(function forEach(edge) {
-                    this.map.removeLayer(edge);
-                }.bind(this));
-
-            }
-
-        },
-
-        /**
-         * @method getLatLngs
-         * @return {LatLng[]}
-         */
-        getLatLngs: function getLatLngs() {
-
-            return this.polyline._parts[0].map(function map(part) {
-                return this.map.layerPointToLatLng(part);
-            }.bind(this));
-
-        }
-        
-    };
-
-})();
+        Pather.prototype.getMode = function () {
+            return this.options.mode;
+        };
+        Pather.prototype.setOptions = function (options) {
+            this.options = __assign({}, this.options, options);
+        };
+        Pather.MODE = Mode$1;
+        return Pather;
+    }(leaflet.FeatureGroup));
+
+    return Pather;
+
+})));

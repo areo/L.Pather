@@ -8,3 +8,6 @@ npm-debug.log
 # Bower
 example/vendor/*
 !example/vendor/.gitkeep
+
+# rollup-plugin-typescript2
+.rpt2_cache
