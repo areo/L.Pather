@@ -1,8 +1,6 @@
-(function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory(require('leaflet'), require('d3')) :
-    typeof define === 'function' && define.amd ? define(['leaflet', 'd3'], factory) :
-    (global.L = global.L || {}, global.L.Pather = factory(global.L,global.d3));
-}(this, (function (leaflet,d3) { 'use strict';
+this.L = this.L || {};
+this.L.Pather = (function (leaflet,d3) {
+    'use strict';
 
     /*! *****************************************************************************
     Copyright (c) Microsoft Corporation. All rights reserved.
@@ -462,4 +460,5 @@
 
     return Pather;
 
-})));
+}(L,d3));
+module.exports = this.L.Pather;

@@ -3,7 +3,6 @@
     "version": "0.2.0",
     "description": "Branching from Leaflet.FreeDraw, L.Pather is a freehand polyline creator that simplifies the polyline for mutability.",
     "main": "dist/pather-src.js",
-    "module": "dist/pather-src.esm.js",
     "directories": {
         "example": "example",
         "test": "tests"
