@@ -182,7 +182,6 @@ this.L.Pather = (function (leaflet,d3) {
             _this.options = options;
             _this.creating = false;
             _this.polylines = [];
-            _this.eventHandlers = {};
             _this.draggingState = false;
             _this.latLngs = [];
             _this.options = __assign({}, _this.defaultOptions(), options);
@@ -243,12 +242,21 @@ this.L.Pather = (function (leaflet,d3) {
                     this.removePath(this.polylines[length]);
                 }
             }
-            this.map.off('mousedown', this.mouseDownHandler, this);
-            this.map.off('mousemove', this.mouseMoveHandler, this);
-            this.map.off('mouseup', this.mouseUpHandler, this);
+            this.map.off('mousedown', this.eventHandlers.mouseDown);
+            this.map.off('mousemove', this.eventHandlers.mouseMove);
+            this.map.off('mouseup', this.eventHandlers.mouseUp);
             this.map
                 .getContainer()
-                .removeEventListener('mouseleave', this.mouseLeaveHandler);
+                .removeEventListener('mouseleave', this.eventHandlers.mouseLeave);
+            this.map
+                .getContainer()
+                .removeEventListener('touchstart', this.eventHandlers.touchStart);
+            this.map
+                .getContainer()
+                .removeEventListener('touchmove', this.eventHandlers.touchMove);
+            this.map
+                .getContainer()
+                .removeEventListener('touchend', this.eventHandlers.touchEnd);
             this.element.classList.remove('mode-create');
             this.element.classList.remove('mode-delete');
             this.element.classList.remove('mode-edit');
@@ -269,7 +277,7 @@ this.L.Pather = (function (leaflet,d3) {
             return !!(this.options.mode & Mode$1.CREATE);
         };
         Pather.prototype.mouseDownHandler = function (event) {
-            var latLng = this.map.mouseEventToLatLng(event.originalEvent);
+            var latLng = this.map.mouseEventToLatLng(event);
             if (this.isPolylineCreatable() && !this.edgeBeingChanged()) {
                 this.creating = true;
                 this.fromPoint = this.map.latLngToContainerPoint(latLng);
@@ -277,7 +285,7 @@ this.L.Pather = (function (leaflet,d3) {
             }
         };
         Pather.prototype.mouseMoveHandler = function (event) {
-            var point = this.map.mouseEventToContainerPoint(event.originalEvent);
+            var point = this.map.mouseEventToContainerPoint(event);
             if (this.edgeBeingChanged()) {
                 this.edgeBeingChanged().moveTo(this.map.containerPointToLayerPoint(point));
                 return;
@@ -317,34 +325,41 @@ this.L.Pather = (function (leaflet,d3) {
             edgeBeingChanged.finished();
             edgeBeingChanged.manipulating = null;
         };
-        /**
-         * @method attachEvents
-         * @param {L.Map} map
-         * @return {void}
-         */
         Pather.prototype.attachEvents = function (map) {
+            var _this = this;
             this.eventHandlers = {
-                mouseDown: this.mouseDownHandler.bind(this),
-                mouseMove: this.mouseMoveHandler.bind(this),
-                mouseUp: this.mouseUpHandler.bind(this),
-                mouseLeave: this.mouseLeaveHandler.bind(this)
+                mouseDown: function (event) { return _this.mouseDownHandler(event.originalEvent); },
+                mouseMove: function (event) {
+                    event.originalEvent.preventDefault();
+                    _this.mouseMoveHandler(event.originalEvent);
+                },
+                mouseUp: function (event) { return _this.mouseUpHandler(); },
+                mouseLeave: function (event) { return _this.mouseLeaveHandler(); },
+                touchStart: function (event) {
+                    return _this.mouseDownHandler(event.touches[0]);
+                },
+                touchMove: function (event) {
+                    event.preventDefault();
+                    _this.mouseMoveHandler(event.touches[0]);
+                },
+                touchEnd: function (event) { return _this.mouseUpHandler(); }
             };
-            this.map.on('mousedown', this.mouseDownHandler, this);
-            this.map.on('mousemove', this.mouseMoveHandler, this);
-            this.map.on('mouseup', this.mouseUpHandler, this);
+            this.map.on('mousedown', this.eventHandlers.mouseDown);
+            this.map.on('mousemove', this.eventHandlers.mouseMove);
+            this.map.on('mouseup', this.eventHandlers.mouseUp);
             this.map
                 .getContainer()
-                .addEventListener('mouseleave', this.mouseLeaveHandler.bind(this));
+                .addEventListener('mouseleave', this.eventHandlers.mouseLeave);
             // Attach the mobile events that delegate to the desktop events.
             this.map
                 .getContainer()
-                .addEventListener('touchstart', this.fire.bind(map, 'mousedown'));
+                .addEventListener('touchstart', this.eventHandlers.touchStart);
             this.map
                 .getContainer()
-                .addEventListener('touchmove', this.fire.bind(map, 'mousemove'));
+                .addEventListener('touchmove', this.eventHandlers.touchMove);
             this.map
                 .getContainer()
-                .addEventListener('touchend', this.fire.bind(map, 'mouseup'));
+                .addEventListener('touchend', this.eventHandlers.touchEnd);
         };
         /**
          * @method clearAll

@@ -19,6 +19,16 @@ interface PatherOptions extends L.PolylineOptions {
     pathWidth?: number
 }
 
+interface PatherEventHandlers {
+    mouseDown: (e: L.LeafletMouseEvent) => void
+    mouseMove: (e: L.LeafletMouseEvent) => void
+    mouseUp: (e: L.LeafletMouseEvent) => void
+    mouseLeave: (MouseEvent) => void
+    touchStart: (TouchEvent) => void
+    touchMove: (TouchEvent) => void
+    touchEnd: (TouchEvent) => void
+}
+
 export default class Pather extends FeatureGroup {
     static MODE = Mode
 
@@ -28,7 +38,7 @@ export default class Pather extends FeatureGroup {
     fromPoint: L.Point
     creating: boolean = false
     polylines: PatherPolyline[] = []
-    eventHandlers = {}
+    eventHandlers: PatherEventHandlers
     draggingState: boolean = false
     latLngs: L.LatLng[] = []
 
@@ -112,12 +122,21 @@ export default class Pather extends FeatureGroup {
             }
         }
 
-        this.map.off('mousedown', this.mouseDownHandler, this)
-        this.map.off('mousemove', this.mouseMoveHandler, this)
-        this.map.off('mouseup', this.mouseUpHandler, this)
+        this.map.off('mousedown', this.eventHandlers.mouseDown)
+        this.map.off('mousemove', this.eventHandlers.mouseMove)
+        this.map.off('mouseup', this.eventHandlers.mouseUp)
         this.map
             .getContainer()
-            .removeEventListener('mouseleave', this.mouseLeaveHandler)
+            .removeEventListener('mouseleave', this.eventHandlers.mouseLeave)
+        this.map
+            .getContainer()
+            .removeEventListener('touchstart', this.eventHandlers.touchStart)
+        this.map
+            .getContainer()
+            .removeEventListener('touchmove', this.eventHandlers.touchMove)
+        this.map
+            .getContainer()
+            .removeEventListener('touchend', this.eventHandlers.touchEnd)
 
         this.element.classList.remove('mode-create')
         this.element.classList.remove('mode-delete')
@@ -145,8 +164,8 @@ export default class Pather extends FeatureGroup {
         return !!(this.options.mode & Mode.CREATE)
     }
 
-    mouseDownHandler(event: L.LeafletMouseEvent) {
-        const latLng = this.map.mouseEventToLatLng(event.originalEvent)
+    mouseDownHandler(event: MouseEvent) {
+        const latLng = this.map.mouseEventToLatLng(event)
 
         if (this.isPolylineCreatable() && !this.edgeBeingChanged()) {
             this.creating = true
@@ -155,8 +174,8 @@ export default class Pather extends FeatureGroup {
         }
     }
 
-    mouseMoveHandler(event: L.LeafletMouseEvent): void {
-        const point = this.map.mouseEventToContainerPoint(event.originalEvent)
+    mouseMoveHandler(event: MouseEvent): void {
+        const point = this.map.mouseEventToContainerPoint(event)
 
         if (this.edgeBeingChanged()) {
             this.edgeBeingChanged().moveTo(
@@ -208,36 +227,41 @@ export default class Pather extends FeatureGroup {
         edgeBeingChanged.manipulating = null
     }
 
-    /**
-     * @method attachEvents
-     * @param {L.Map} map
-     * @return {void}
-     */
     attachEvents(map: L.Map): void {
         this.eventHandlers = {
-            mouseDown: this.mouseDownHandler.bind(this),
-            mouseMove: this.mouseMoveHandler.bind(this),
-            mouseUp: this.mouseUpHandler.bind(this),
-            mouseLeave: this.mouseLeaveHandler.bind(this)
+            mouseDown: event => this.mouseDownHandler(event.originalEvent),
+            mouseMove: (event: L.LeafletMouseEvent) => {
+                event.originalEvent.preventDefault()
+                this.mouseMoveHandler(event.originalEvent)
+            },
+            mouseUp: event => this.mouseUpHandler(),
+            mouseLeave: event => this.mouseLeaveHandler(),
+            touchStart: (event: TouchEvent) =>
+                this.mouseDownHandler(event.touches[0] as any),
+            touchMove: (event: TouchEvent) => {
+                event.preventDefault()
+                this.mouseMoveHandler(event.touches[0] as any)
+            },
+            touchEnd: event => this.mouseUpHandler()
         }
 
-        this.map.on('mousedown', this.mouseDownHandler, this)
-        this.map.on('mousemove', this.mouseMoveHandler, this)
-        this.map.on('mouseup', this.mouseUpHandler, this)
+        this.map.on('mousedown', this.eventHandlers.mouseDown)
+        this.map.on('mousemove', this.eventHandlers.mouseMove)
+        this.map.on('mouseup', this.eventHandlers.mouseUp)
         this.map
             .getContainer()
-            .addEventListener('mouseleave', this.mouseLeaveHandler.bind(this))
+            .addEventListener('mouseleave', this.eventHandlers.mouseLeave)
 
         // Attach the mobile events that delegate to the desktop events.
         this.map
             .getContainer()
-            .addEventListener('touchstart', this.fire.bind(map, 'mousedown'))
+            .addEventListener('touchstart', this.eventHandlers.touchStart)
         this.map
             .getContainer()
-            .addEventListener('touchmove', this.fire.bind(map, 'mousemove'))
+            .addEventListener('touchmove', this.eventHandlers.touchMove)
         this.map
             .getContainer()
-            .addEventListener('touchend', this.fire.bind(map, 'mouseup'))
+            .addEventListener('touchend', this.eventHandlers.touchEnd)
     }
 
     /**
