@@ -70,7 +70,9 @@ this.L.Pather = (function (leaflet,d3) {
             var _this = this;
             this.detachElbows();
             this.getLatLngs().forEach(function (latLng) {
-                var icon = new leaflet.DivIcon({ className: 'elbow' });
+                var icon = new leaflet.DivIcon({
+                    className: _this.options.elbowClass || 'elbow'
+                });
                 var edge = new leaflet.Marker(latLng, { icon: icon }).addTo(_this.map);
                 _this.attachElbowEvents(edge);
                 _this.edges.push(edge);
@@ -192,7 +194,14 @@ this.L.Pather = (function (leaflet,d3) {
                 return false;
             }
             this.clearAll();
-            var polyline = new PatherPolyline(this.map, latLngs, this.options, {
+            var options = {
+                color: this.options.color,
+                opacity: this.options.opacity,
+                weight: this.options.weight,
+                smoothFactor: this.options.smoothFactor,
+                elbowClass: this.options.elbowClass
+            };
+            var polyline = new PatherPolyline(this.map, latLngs, options, {
                 fire: this.fire.bind(this),
                 mode: this.getMode.bind(this),
                 remove: this.removePath.bind(this)
@@ -392,9 +401,9 @@ this.L.Pather = (function (leaflet,d3) {
                 width: '100%',
                 height: '100%',
                 smoothFactor: 10,
-                pathColour: 'black',
-                pathOpacity: 0.55,
-                pathWidth: 3,
+                color: 'black',
+                opacity: 0.55,
+                weight: 3,
                 mode: Mode$1.ALL
             };
         };

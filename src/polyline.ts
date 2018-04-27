@@ -7,6 +7,10 @@ export interface PatherPolylineMethods {
     remove?: (any) => void
 }
 
+export interface PatherPolylineOptions extends L.PolylineOptions {
+    elbowClass?: string
+}
+
 export class PatherPolyline {
     polyline: L.Polyline
     manipulating: L.Marker
@@ -15,7 +19,7 @@ export class PatherPolyline {
     constructor(
         private map: L.Map,
         latLngs: L.LatLng[],
-        private options: L.PolylineOptions,
+        private options: PatherPolylineOptions,
         private methods: PatherPolylineMethods
     ) {
         this.polyline = new Polyline(latLngs, this.options).addTo(map)
@@ -38,7 +42,9 @@ export class PatherPolyline {
         this.detachElbows()
 
         this.getLatLngs().forEach(latLng => {
-            const icon = new DivIcon({ className: 'elbow' })
+            const icon = new DivIcon({
+                className: this.options.elbowClass || 'elbow'
+            })
             const edge = new Marker(latLng, { icon }).addTo(this.map)
 
             this.attachElbowEvents(edge)
@@ -139,7 +145,10 @@ export class PatherPolyline {
 
     redraw(edges: Array<any>): void {
         const latLngs = edges.map(edge => edge._latlng)
-        const options: L.PolylineOptions = { ...this.options, smoothFactor: 0 }
+        const options: PatherPolylineOptions = {
+            ...this.options,
+            smoothFactor: 0
+        }
 
         this.softRemove(false)
         this.polyline = new Polyline(latLngs, options).addTo(this.map)

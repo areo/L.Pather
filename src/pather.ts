@@ -1,7 +1,7 @@
 import { Point, FeatureGroup } from 'leaflet'
 import * as d3 from 'd3'
 import Mode from './mode'
-import { PatherPolyline } from './polyline'
+import { PatherPolyline, PatherPolylineOptions } from './polyline'
 
 interface PatherOptions extends L.PolylineOptions {
     mode?: Mode
@@ -14,9 +14,6 @@ interface PatherOptions extends L.PolylineOptions {
     strokeWidth?: number
     width?: string
     height?: string
-    pathColour?: string
-    pathOpacity?: number
-    pathWidth?: number
 }
 
 interface PatherEventHandlers {
@@ -54,7 +51,15 @@ export default class Pather extends FeatureGroup {
 
         this.clearAll()
 
-        var polyline = new PatherPolyline(this.map, latLngs, this.options, {
+        const options: PatherPolylineOptions = {
+            color: this.options.color,
+            opacity: this.options.opacity,
+            weight: this.options.weight,
+            smoothFactor: this.options.smoothFactor,
+            elbowClass: this.options.elbowClass
+        }
+
+        const polyline = new PatherPolyline(this.map, latLngs, options, {
             fire: this.fire.bind(this),
             mode: this.getMode.bind(this),
             remove: this.removePath.bind(this)
@@ -297,9 +302,9 @@ export default class Pather extends FeatureGroup {
             width: '100%',
             height: '100%',
             smoothFactor: 10,
-            pathColour: 'black',
-            pathOpacity: 0.55,
-            pathWidth: 3,
+            color: 'black',
+            opacity: 0.55,
+            weight: 3,
             mode: Mode.ALL
         }
     }
