@@ -90,6 +90,14 @@ export default class Pather extends FeatureGroup {
         return false
     }
 
+    clearPaths() {
+        this.polylines.forEach(polyline => {
+            polyline.softRemove()
+            this.fire('deleted', { polyline, latLngs: [] })
+        })
+        this.polylines = []
+    }
+
     getPaths(): PatherPolyline[] {
         return this.polylines
     }

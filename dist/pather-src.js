@@ -223,6 +223,14 @@ this.L.Pather = (function (leaflet,d3) {
             }
             return false;
         };
+        Pather.prototype.clearPaths = function () {
+            var _this = this;
+            this.polylines.forEach(function (polyline) {
+                polyline.softRemove();
+                _this.fire('deleted', { polyline: polyline, latLngs: [] });
+            });
+            this.polylines = [];
+        };
         Pather.prototype.getPaths = function () {
             return this.polylines;
         };
