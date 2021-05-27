@@ -1,5 +1,5 @@
 this.L = this.L || {};
-this.L.Pather = (function (leaflet,d3) {
+this.L.Pather = (function (leaflet) {
     'use strict';
 
     /*! *****************************************************************************
@@ -178,7 +178,7 @@ this.L.Pather = (function (leaflet,d3) {
 
     var Pather = /** @class */ (function (_super) {
         __extends(Pather, _super);
-        function Pather(options) {
+        function Pather(options, d3) {
             if (options === void 0) { options = {}; }
             var _this = _super.call(this) || this;
             _this.options = options;
@@ -186,6 +186,7 @@ this.L.Pather = (function (leaflet,d3) {
             _this.polylines = [];
             _this.draggingState = false;
             _this.latLngs = [];
+            _this.d3 = d3;
             _this.options = __assign({}, _this.defaultOptions(), options);
             return _this;
         }
@@ -207,7 +208,7 @@ this.L.Pather = (function (leaflet,d3) {
                 remove: this.removePath.bind(this)
             });
             this.polylines.push(polyline);
-            this.fire('created', {
+            this.fire("created", {
                 polyline: polyline,
                 latLngs: polyline.getLatLngs()
             });
@@ -218,7 +219,7 @@ this.L.Pather = (function (leaflet,d3) {
                 var indexOf = this.polylines.indexOf(model);
                 this.polylines.splice(indexOf, 1);
                 model.softRemove();
-                this.fire('deleted', { polyline: model, latLngs: [] });
+                this.fire("deleted", { polyline: model, latLngs: [] });
                 return true;
             }
             return false;
@@ -227,7 +228,7 @@ this.L.Pather = (function (leaflet,d3) {
             var _this = this;
             this.polylines.forEach(function (polyline) {
                 polyline.softRemove();
-                _this.fire('deleted', { polyline: polyline, latLngs: [] });
+                _this.fire("deleted", { polyline: polyline, latLngs: [] });
             });
             this.polylines = [];
         };
@@ -239,12 +240,13 @@ this.L.Pather = (function (leaflet,d3) {
             this.element = map.getContainer();
             this.draggingState = map.dragging.enabled();
             this.fromPoint = new leaflet.Point(0, 0, false);
-            this.svg = d3.select(this.element)
-                .append('svg')
-                .attr('pointer-events', 'none')
-                .attr('class', this.getOption('moduleClass'))
-                .attr('width', this.getOption('width'))
-                .attr('height', this.getOption('height'));
+            this.svg = this.d3
+                .select(this.element)
+                .append("svg")
+                .attr("pointer-events", "none")
+                .attr("class", this.getOption("moduleClass"))
+                .attr("width", this.getOption("width"))
+                .attr("height", this.getOption("height"));
             map.dragging.disable();
             // Attach the mouse events for drawing the polyline.
             this.attachEvents(map);
@@ -259,30 +261,30 @@ this.L.Pather = (function (leaflet,d3) {
                     this.removePath(this.polylines[length]);
                 }
             }
-            this.map.off('mousedown', this.eventHandlers.mouseDown);
-            this.map.off('mousemove', this.eventHandlers.mouseMove);
-            this.map.off('mouseup', this.eventHandlers.mouseUp);
+            this.map.off("mousedown", this.eventHandlers.mouseDown);
+            this.map.off("mousemove", this.eventHandlers.mouseMove);
+            this.map.off("mouseup", this.eventHandlers.mouseUp);
             this.map
                 .getContainer()
-                .removeEventListener('mouseleave', this.eventHandlers.mouseLeave);
+                .removeEventListener("mouseleave", this.eventHandlers.mouseLeave);
             this.map
                 .getContainer()
-                .removeEventListener('touchstart', this.eventHandlers.touchStart);
+                .removeEventListener("touchstart", this.eventHandlers.touchStart);
             this.map
                 .getContainer()
-                .removeEventListener('touchmove', this.eventHandlers.touchMove);
+                .removeEventListener("touchmove", this.eventHandlers.touchMove);
             this.map
                 .getContainer()
-                .removeEventListener('touchend', this.eventHandlers.touchEnd);
-            this.element.classList.remove('mode-create');
-            this.element.classList.remove('mode-delete');
-            this.element.classList.remove('mode-edit');
-            this.element.classList.remove('mode-append');
+                .removeEventListener("touchend", this.eventHandlers.touchEnd);
+            this.element.classList.remove("mode-create");
+            this.element.classList.remove("mode-delete");
+            this.element.classList.remove("mode-edit");
+            this.element.classList.remove("mode-append");
             var tileLayer = this.map
                 .getContainer()
-                .querySelector('.leaflet-tile-pane');
-            var originalState = this.draggingState ? 'enable' : 'disable';
-            tileLayer.style.pointerEvents = 'all';
+                .querySelector(".leaflet-tile-pane");
+            var originalState = this.draggingState ? "enable" : "disable";
+            tileLayer.style.pointerEvents = "all";
             this.map.dragging[originalState]();
             return this;
         };
@@ -307,20 +309,21 @@ this.L.Pather = (function (leaflet,d3) {
                 this.edgeBeingChanged().moveTo(this.map.containerPointToLayerPoint(point));
                 return;
             }
-            var lineFunction = d3.line()
+            var lineFunction = this.d3
+                .line()
                 .x(function (d) { return d.x; })
                 .y(function (d) { return d.y; })
-                .curve(d3.curveLinear);
+                .curve(this.d3.curveLinear);
             if (this.creating) {
                 var lineData = [this.fromPoint, new leaflet.Point(point.x, point.y, false)];
                 this.latLngs.push(this.map.containerPointToLatLng(point));
                 this.svg
-                    .append('path')
-                    .classed('drawing-line', true)
-                    .attr('d', lineFunction(lineData))
-                    .attr('stroke', this.getOption('strokeColour'))
-                    .attr('stroke-width', this.getOption('strokeWidth'))
-                    .attr('fill', 'none');
+                    .append("path")
+                    .classed("drawing-line", true)
+                    .attr("d", lineFunction(lineData))
+                    .attr("stroke", this.getOption("strokeColour"))
+                    .attr("stroke-width", this.getOption("strokeWidth"))
+                    .attr("fill", "none");
                 this.fromPoint = new leaflet.Point(point.x, point.y, false);
             }
         };
@@ -361,29 +364,29 @@ this.L.Pather = (function (leaflet,d3) {
                 },
                 touchEnd: function (event) { return _this.mouseUpHandler(); }
             };
-            this.map.on('mousedown', this.eventHandlers.mouseDown);
-            this.map.on('mousemove', this.eventHandlers.mouseMove);
-            this.map.on('mouseup', this.eventHandlers.mouseUp);
+            this.map.on("mousedown", this.eventHandlers.mouseDown);
+            this.map.on("mousemove", this.eventHandlers.mouseMove);
+            this.map.on("mouseup", this.eventHandlers.mouseUp);
             this.map
                 .getContainer()
-                .addEventListener('mouseleave', this.eventHandlers.mouseLeave);
+                .addEventListener("mouseleave", this.eventHandlers.mouseLeave);
             // Attach the mobile events that delegate to the desktop events.
             this.map
                 .getContainer()
-                .addEventListener('touchstart', this.eventHandlers.touchStart);
+                .addEventListener("touchstart", this.eventHandlers.touchStart);
             this.map
                 .getContainer()
-                .addEventListener('touchmove', this.eventHandlers.touchMove);
+                .addEventListener("touchmove", this.eventHandlers.touchMove);
             this.map
                 .getContainer()
-                .addEventListener('touchend', this.eventHandlers.touchEnd);
+                .addEventListener("touchend", this.eventHandlers.touchEnd);
         };
         /**
          * @method clearAll
          * @return {void}
          */
         Pather.prototype.clearAll = function () {
-            this.svg.text('');
+            this.svg.text("");
         };
         /**
          * @method getOption
@@ -399,17 +402,17 @@ this.L.Pather = (function (leaflet,d3) {
          */
         Pather.prototype.defaultOptions = function () {
             return {
-                moduleClass: 'pather',
-                lineClass: 'drawing-line',
+                moduleClass: "pather",
+                lineClass: "drawing-line",
                 detectTouch: true,
-                elbowClass: 'elbow',
+                elbowClass: "elbow",
                 removePolylines: true,
-                strokeColour: 'rgba(0,0,0,.5)',
+                strokeColour: "rgba(0,0,0,.5)",
                 strokeWidth: 2,
-                width: '100%',
-                height: '100%',
+                width: "100%",
+                height: "100%",
                 smoothFactor: 10,
-                color: 'black',
+                color: "black",
                 opacity: 0.55,
                 weight: 3,
                 mode: Mode$1.ALL
@@ -434,7 +437,7 @@ this.L.Pather = (function (leaflet,d3) {
             this.options.mode = mode;
             var tileLayer = this.map
                 .getContainer()
-                .querySelector('.leaflet-tile-pane');
+                .querySelector(".leaflet-tile-pane");
             /**
              * @method shouldDisableDrag
              * @return {Boolean}
@@ -442,18 +445,18 @@ this.L.Pather = (function (leaflet,d3) {
              */
             var shouldDisableDrag = function () {
                 if (_this.options.detectTouch &&
-                    ('ontouchstart' in window || 'onmsgesturechange' in window)) {
+                    ("ontouchstart" in window || "onmsgesturechange" in window)) {
                     return (!!(_this.options.mode & Mode$1.CREATE) ||
                         !!(_this.options.mode & Mode$1.EDIT));
                 }
                 return !!(_this.options.mode & Mode$1.CREATE);
             };
             if (shouldDisableDrag()) {
-                var originalState = this.draggingState ? 'disable' : 'enable';
-                tileLayer.style.pointerEvents = 'none';
+                var originalState = this.draggingState ? "disable" : "enable";
+                tileLayer.style.pointerEvents = "none";
                 return void this.map.dragging[originalState]();
             }
-            tileLayer.style.pointerEvents = 'all';
+            tileLayer.style.pointerEvents = "all";
             this.map.dragging.enable();
         };
         /**
@@ -469,16 +472,16 @@ this.L.Pather = (function (leaflet,d3) {
              * @return {void}
              */
             var conditionallyAppendClassName = function (modeName) {
-                var className = ['mode', modeName].join('-');
+                var className = ["mode", modeName].join("-");
                 if (Mode$1[modeName.toUpperCase()] & mode) {
                     return void _this.element.classList.add(className);
                 }
                 _this.element.classList.remove(className);
             };
-            conditionallyAppendClassName('create');
-            conditionallyAppendClassName('delete');
-            conditionallyAppendClassName('edit');
-            conditionallyAppendClassName('append');
+            conditionallyAppendClassName("create");
+            conditionallyAppendClassName("delete");
+            conditionallyAppendClassName("edit");
+            conditionallyAppendClassName("append");
         };
         Pather.prototype.getMode = function () {
             return this.options.mode;
@@ -492,5 +495,5 @@ this.L.Pather = (function (leaflet,d3) {
 
     return Pather;
 
-}(L,d3));
+}(L));
 module.exports = this.L.Pather;
